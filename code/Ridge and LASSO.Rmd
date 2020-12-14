@@ -1,0 +1,67 @@
+---
+title: "NBA ML Project: Ridge and LASSO"
+author: "Group"
+date: "4/20/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# reading in the datasets for Ridge and LASSO
+
+library(tidyverse)
+library(stringr)
+
+# training dataset
+traindata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatraindataset2.csv")
+traindata$Team <- as.character(traindata$Team)
+
+# testing dataset
+testdata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatestdataset2.csv")
+testdata$Team <- as.character(testdata$Team)
+```
+
+```{r}
+# converting datasets into per game stats
+for (i in c(6,7,9,10,12,13,15,16,18,19,20,21,22,23,24,25,26))
+{
+  traindata[ ,i] <- traindata[ ,i]/82
+  testdata[ ,i] <- testdata[ ,i]/82
+}
+```
+
+```{r}
+# performing Ridge regression on the training dataset, then computing the test MSE
+
+library(glmnet)
+set.seed(1)
+
+ytrain <- traindata$WINS
+xtrain <- model.matrix(WINS ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata)[ ,-1]
+
+ytest <- testdata$WINS
+xtest <- model.matrix(WINS ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = testdata)[ ,-1]
+
+NBA.ridge <- glmnet(xtrain, ytrain, alpha = 0)
+cv.ridge <- cv.glmnet(xtrain, ytrain, alpha = 0)
+bestlam <- cv.ridge$lambda.min
+
+ridge.pred <- predict(NBA.ridge, s = bestlam, newx = xtest)
+mean((ridge.pred - ytest)^2)
+```
+
+```{r}
+# performing LASSO regression on the training dataset, then computing the test MSE
+
+set.seed(1)
+
+NBA.lasso <- glmnet(xtrain, ytrain, alpha = 1)
+cv.lasso <- cv.glmnet(xtrain, ytrain, alpha = 1)
+bestlam2 <- cv.lasso$lambda.min
+
+lasso.pred <- predict(NBA.lasso, s = bestlam2, newx = xtest)
+mean((lasso.pred - ytest)^2)
+```

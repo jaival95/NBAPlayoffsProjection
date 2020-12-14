@@ -1,0 +1,129 @@
+---
+title: "NBA ML Project: Logistic Regression"
+author: "Group"
+date: "4/19/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# reading in the datasets and adding a column that denotes if a team made or missed the playoffs
+
+library(tidyverse)
+library(stringr)
+
+# training dataset
+traindata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatraindataset.csv")
+traindata$Team <- as.character(traindata$Team)
+
+traindata$playoffs <- NA
+for (i in 1:nrow(traindata))
+{
+  if(endsWith(traindata$Team[i], "*"))
+  {
+    traindata$playoffs[i] <- 1
+  }
+  else
+  {
+    traindata$playoffs[i] <- 0
+  }
+}
+
+# testing dataset
+testdata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatestdataset.csv")
+testdata$Team <- as.character(testdata$Team)
+
+testdata$playoffs <- NA
+for (i in 1:nrow(testdata))
+{
+  if(endsWith(testdata$Team[i], "*"))
+  {
+    testdata$playoffs[i] <- 1
+  }
+  else
+  {
+    testdata$playoffs[i] <- 0
+  }
+}
+```
+
+```{r}
+# converting datasets into per game stats
+for (i in c(5,6,8,9,11,12,14,15,17,18,19,20,21,22,23,24,25))
+{
+  traindata[ ,i] <- traindata[ ,i]/82
+  testdata[ ,i] <- testdata[ ,i]/82
+}
+```
+
+```{r}
+# performing LASSO (logistic regression) on the training dataset
+
+library(glmnet)
+set.seed(1)
+
+y <- traindata$playoffs
+x <- model.matrix(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata)[ ,-1]
+
+fit.lasso <- glmnet(x, y, alpha = 1)
+cv.lasso <- cv.glmnet(x, y, alpha = 1)
+bestlam <- cv.lasso$lambda.min
+predict(fit.lasso, s = bestlam, type = "coefficients")
+```
+
+```{r}
+# performing logistic regression on the training dataset to predict if a team made or missed the playoffs
+
+glm.playoffs <- glm(playoffs ~ FG. + X3P. + FT. + TRB + STL + TOV, data = traindata, family = binomial)
+# coef(glm.playoffs)
+playoffs.pred <- predict(glm.playoffs, data = traindata, type = "response")
+
+ggplot(traindata, aes(x = FG., y = playoffs.pred)) + geom_point() + geom_smooth(method = "glm", method.args = list(family = "quasibinomial"))
+
+traindata$predplayoffs <- NA
+for (i in 1:nrow(traindata))
+{
+  if (playoffs.pred[i] > 0.5)
+  {
+    traindata$predplayoffs[i] <- 1
+  }
+  else
+  {
+    traindata$predplayoffs[i] <- 0
+  }
+}
+
+table(traindata$predplayoffs, traindata$playoffs)
+trainerr <- (1 - mean(traindata$predplayoffs == traindata$playoffs))
+trainerr
+```
+
+```{r}
+# performing logistic regression on the testing dataset to predict if a team made or missed the playoffs
+
+glm.playoffs2 <- glm(playoffs ~ FG. + X3P. + FT. + TRB + STL + TOV, data = testdata, family = binomial)
+# coef(glm.playoffs2)
+playoffs.pred2 <- predict(glm.playoffs2, data = testdata, type = "response")
+
+ggplot(testdata, aes(x = FG., y = playoffs.pred2)) + geom_point() + geom_smooth(method = "glm", method.args = list(family = "quasibinomial"))
+
+testdata$predplayoffs <- NA
+for (i in 1:nrow(testdata))
+{
+  if (playoffs.pred2[i] > 0.5)
+  {
+    testdata$predplayoffs[i] <- 1
+  }
+  else
+  {
+    testdata$predplayoffs[i] <- 0
+  }
+}
+
+table(testdata$predplayoffs, testdata$playoffs)
+testerr <- (1 - mean(testdata$predplayoffs == testdata$playoffs))
+testerr
+```

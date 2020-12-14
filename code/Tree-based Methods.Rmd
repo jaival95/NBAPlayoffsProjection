@@ -1,0 +1,131 @@
+---
+title: "NBA ML Project: Tree-based Methods"
+author: "Group"
+date: "4/19/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# reading in the datasets and adding a column that denotes if a team made or missed the playoffs
+
+library(tidyverse)
+library(stringr)
+
+# training dataset
+traindata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatraindataset.csv")
+traindata$Team <- as.character(traindata$Team)
+
+traindata$playoffs <- NA
+for (i in 1:nrow(traindata))
+{
+  if(endsWith(traindata$Team[i], "*"))
+  {
+    traindata$playoffs[i] <- 1
+  }
+  else
+  {
+    traindata$playoffs[i] <- 0
+  }
+}
+
+# testing dataset
+testdata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatestdataset.csv")
+testdata$Team <- as.character(testdata$Team)
+
+testdata$playoffs <- NA
+for (i in 1:nrow(testdata))
+{
+  if(endsWith(testdata$Team[i], "*"))
+  {
+    testdata$playoffs[i] <- 1
+  }
+  else
+  {
+    testdata$playoffs[i] <- 0
+  }
+}
+```
+
+```{r}
+# converting datasets into per game stats
+for (i in c(5,6,8,9,11,12,14,15,17,18,19,20,21,22,23,24,25))
+{
+  traindata[ ,i] <- traindata[ ,i]/82
+  testdata[ ,i] <- testdata[ ,i]/82
+}
+```
+
+```{r}
+# creating a classification decision tree on the training dataset with all variables (NBA.tree)
+
+library(tree)
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.tree <- tree(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata)
+# summary(NBA.tree)
+# plot(NBA.tree)
+# text(NBA.tree)
+```
+
+```{r}
+# predicting the response on the test dataset and computing the test error rate with all variables
+
+set.seed(1)
+testdata$playoffs <- as.factor(testdata$playoffs)
+tree.pred <- predict(NBA.tree, testdata, type = "class")
+table(tree.pred, testdata$playoffs)
+decisiontesterr <- (1 - mean(tree.pred == testdata$playoffs))
+decisiontesterr
+```
+
+```{r}
+# determining optimal tree size, then performing tree pruning, then computing the test error rate
+
+set.seed(1)
+cv.NBAtree <- cv.tree(NBA.tree, FUN = prune.misclass)
+prune.NBAtree <- prune.misclass(NBA.tree, best = 12)
+# summary(prune.NBAtree)
+# plot(prune.NBAtree)
+# text(prune.NBAtree)
+
+prune.pred <- predict(prune.NBAtree, testdata, type = "class")
+table(prune.pred, testdata$playoffs)
+prunetesterr <- (1 - mean(prune.pred == testdata$playoffs))
+prunetesterr
+```
+
+```{r}
+# performing bagging on the training dataset, then computing the test error rate, then computing the OOB error rate
+
+library(randomForest)
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.bag <- randomForest(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, mtry = 21, importance = TRUE)
+
+yhat.bag <- predict(NBA.bag, testdata)
+table(yhat.bag, testdata$playoffs)
+bagtesterr <- (1 - mean(yhat.bag == testdata$playoffs))
+bagtesterr
+NBA.bag
+```
+
+```{r}
+# performing random forests on the training dataset, then computing the test error rate, then computing the OOB error rate
+
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.forest <- randomForest(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, mtry = sqrt(21), importance = TRUE)
+
+yhat.forest <- predict(NBA.forest, testdata)
+table(yhat.forest, testdata$playoffs)
+foresttesterr <- (1 - mean(yhat.forest == testdata$playoffs))
+foresttesterr
+NBA.forest
+```

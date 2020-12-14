@@ -1,0 +1,128 @@
+---
+title: "NBA ML Project: SVM"
+author: "Group"
+date: "4/21/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# reading in the datasets and adding a column that denotes if a team made or missed the playoffs
+
+library(tidyverse)
+library(stringr)
+
+# training dataset
+traindata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatraindataset.csv")
+traindata$Team <- as.character(traindata$Team)
+
+traindata$playoffs <- NA
+for (i in 1:nrow(traindata))
+{
+  if(endsWith(traindata$Team[i], "*"))
+  {
+    traindata$playoffs[i] <- 1
+  }
+  else
+  {
+    traindata$playoffs[i] <- 0
+  }
+}
+
+# testing dataset
+testdata <- read.csv("/Users/whansen/Desktop/Junior Year/Second Semester/STOR 565/Project/data/nbatestdataset.csv")
+testdata$Team <- as.character(testdata$Team)
+
+testdata$playoffs <- NA
+for (i in 1:nrow(testdata))
+{
+  if(endsWith(testdata$Team[i], "*"))
+  {
+    testdata$playoffs[i] <- 1
+  }
+  else
+  {
+    testdata$playoffs[i] <- 0
+  }
+}
+```
+
+```{r}
+# converting datasets into per game stats
+for (i in c(5,6,8,9,11,12,14,15,17,18,19,20,21,22,23,24,25))
+{
+  traindata[ ,i] <- traindata[ ,i]/82
+  testdata[ ,i] <- testdata[ ,i]/82
+}
+```
+
+```{r}
+# tuning a support vector classifier (linear svm) on the training dataset
+
+library(e1071)
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.ltune <- tune(svm, playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "linear", ranges = list(cost = c(0.4, 0.5, 0.6, 0.7, 0.8)))
+summary(NBA.ltune)
+```
+
+```{r}
+# performing linear svm with best cost
+
+NBA.svml <- svm(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "linear", cost = 0.5)
+summary(NBA.svml)
+# plot(NBA.svml, testdata, FG. ~ X3P.)
+
+svml.pred <- predict(NBA.svml, testdata)
+table(svml.pred, testdata$playoffs)
+ltesterr <- (1 - mean(svml.pred == testdata$playoffs))
+ltesterr
+```
+
+```{r}
+# tuning a radial svm on the training dataset
+
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.rtune <- tune(svm, playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "radial", ranges = list(cost = c(0.1, 1, 5, 10, 50), gamma = c(0.001, 0.01, 0.05, 0.1, 0.5)))
+summary(NBA.rtune)
+```
+
+```{r}
+# performing radial svm with best cost and gamma
+
+NBA.svmr <- svm(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "radial", cost = 5, gamma = 0.01)
+summary(NBA.svmr)
+
+svmr.pred <- predict(NBA.svmr, testdata)
+table(svmr.pred, testdata$playoffs)
+rtesterr <- (1 - mean(svmr.pred == testdata$playoffs))
+rtesterr
+```
+
+```{r}
+# tuning a polynomial svm on the training dataset
+
+set.seed(1)
+traindata$playoffs <- as.factor(traindata$playoffs)
+
+NBA.ptune <- tune(svm, playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "polynomial", ranges = list(cost = c(1, 5, 10, 50, 100), degree = c(2, 3, 4, 5, 6)))
+summary(NBA.ptune)
+```
+
+```{r}
+# performing polynomial svm with best cost and degree
+
+NBA.svmp <- svm(playoffs ~ FG + FGA + FG. + X3P + X3PA + X3P. + X2P + X2PA + X2P. + FT + FTA + FT. + ORB + DRB + TRB + AST + STL + BLK + TOV + PF + PTS, data = traindata, kernel = "polynomial", cost = 50, degree = 3)
+summary(NBA.svmp)
+
+svmp.pred <- predict(NBA.svmp, testdata)
+table(svmp.pred, testdata$playoffs)
+ptesterr <- (1 - mean(svmp.pred == testdata$playoffs))
+ptesterr
+```
